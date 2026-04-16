@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Concrete Cross-Boundary Failure Demo</title>
+<style>
+  :root{
+    --ink:#1b1e23;
+    --muted:#5a6068;
+    --line:#6d7178;
+    --node:#f5f6f8;
+    --tool:#eceff3;
+    --danger:#9f2f2f;
+    --danger-soft:rgba(159,47,47,.08);
+    --ok:#2d6a4f;
+    --bg:#fff;
+  }
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Times New Roman", Georgia, serif;}
+  .wrap{max-width:1320px;margin:28px auto 44px;padding:0 22px;}
+  h1{margin:0 0 10px;font-size:34px;line-height:1.15;}
+  .sub{margin:0 0 14px;color:var(--muted);font-size:18px;line-height:1.45;max-width:1180px;}
+  .shared-strip{
+    margin:0 0 20px;
+    border:1px solid #d7dde5;
+    background:#fbfcfd;
+    border-radius:12px;
+    padding:12px 14px;
+    font-size:15px;
+    line-height:1.5;
+    color:#2e333a;
+  }
+  .shared-strip b{font-weight:600;}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 18px;}
+  button{border:1px solid #b8bec7;background:#fafbfc;padding:9px 14px;border-radius:8px;font:15px "Times New Roman", Georgia, serif;cursor:pointer;}
+  button.active{border-color:var(--danger);color:var(--danger);background:#fff5f5;}
+  .layout{display:grid;grid-template-columns:minmax(700px,1fr) 440px;gap:22px;align-items:start;}
+  .panel{border:1px solid #d3d8df;border-radius:14px;background:#fff;padding:18px;}
+  .svgbox svg{width:100%;height:auto;display:block;}
+  .node{fill:var(--node);stroke:var(--line);stroke-width:1.3;}
+  .node.active{stroke:var(--danger);stroke-width:2.0;}
+  .node-title{font:600 16px "Times New Roman", Georgia, serif;fill:var(--ink);}
+  .node-sub{font:13px "Times New Roman", Georgia, serif;fill:var(--muted);}
+  .tool{fill:var(--tool);stroke:#7c828a;stroke-width:1.0;}
+  .tool-label{font:13px "Times New Roman", Georgia, serif;fill:var(--ink);}
+  .arrow{stroke:#5d626a;stroke-width:2.2;fill:none;marker-end:url(#arr);}
+  .seam{stroke:var(--danger);stroke-width:2;stroke-dasharray:8 7;opacity:.24;}
+  .seam.on{opacity:1;}
+  .seam-label{font:12.5px "Times New Roman", Georgia, serif;fill:var(--danger);opacity:.14;transition:opacity .2s ease;}
+  .seam-label.on{opacity:1;}
+  .guard-band{fill:var(--danger-soft);stroke:var(--danger);stroke-width:1.5;opacity:.12;}
+  .guard-band.on{opacity:1;}
+  .guard-text{font:600 15px "Times New Roman", Georgia, serif;fill:var(--danger);opacity:.18;}
+  .guard-text.on{opacity:1;}
+  .token{fill:#fff5f5;stroke:var(--danger);stroke-width:2;}
+  .token-label{font:13px "Times New Roman", Georgia, serif;fill:var(--danger);}
+  .ok-note{font:13px "Times New Roman", Georgia, serif;fill:var(--ok);opacity:.15;}
+  .ok-note.on{opacity:1;}
+  .blocked{font:14px "Times New Roman", Georgia, serif;fill:var(--danger);opacity:0;}
+  .blocked.on{opacity:1;}
+  .side h3{margin:0 0 8px;font-size:22px;}
+  .stepnum{display:inline-block;padding:4px 10px;border:1px solid #d2d7de;border-radius:999px;font-size:14px;color:var(--muted);margin-bottom:10px;}
+  .side p{margin:0 0 10px;font-size:16px;line-height:1.52;color:#2e333a;}
+  .card{border:1px solid #dde2e8;border-radius:10px;padding:12px 12px 10px;margin-top:10px;background:#fbfcfd;}
+  .card h4{margin:0 0 8px;font-size:16px;}
+  .mono{font:14px "Courier New", monospace;color:#8b2626;}
+  .row{margin:0 0 6px;font-size:15px;line-height:1.45;}
+  .legend{display:grid;gap:8px;margin-top:16px;font-size:15px;}
+  .leg{display:flex;align-items:center;gap:8px;color:#30343a;}
+  .swatch{width:18px;height:18px;border-radius:4px;border:1px solid #9ea4ad;}
+  .foot{margin-top:10px;color:#3e444c;font-size:15px;line-height:1.5;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Concrete cross-boundary failure demo</h1>
+  <p class="sub">One filing record is tracked from source data to validation. The point is not that users literally make one cartoonish mistake, but that realistic ETL, calendarization, join, and panel-construction steps can gradually strip away the time constraint that made the record legal.</p>
+  <div class="shared-strip">
+    <b>Shared record used in every step:</b>
+    <span class="mono">ticker=A</span>,
+    <span class="mono">period_end=2024-03-31</span>,
+    <span class="mono">filed_at=2024-05-10</span>,
+    <span class="mono">available_time=2024-05-10</span>,
+    <span class="mono">decision_time=2024-04-01</span>,
+    <span class="mono">label_window=[2024-04-02, 2024-04-08]</span>,
+    <span class="mono">eps_surprise=+0.18</span>.
+  </div>
+  <div class="controls">
+    <button id="prevBtn">Prev step</button>
+    <button id="nextBtn">Next step</button>
+    <button id="playBtn">Play</button>
+    <button id="resetBtn">Reset</button>
+    <button id="tgBtn">Toggle TimeGuard</button>
+  </div>
+  <div class="layout">
+    <div class="panel svgbox">
+      <svg viewBox="0 0 1040 620" aria-label="Concrete cross-boundary data flow animation">
+        <defs>
+          <marker id="arr" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+            <path d="M0,0 L10,4 L0,8 z" fill="#5d626a"></path>
+          </marker>
+        </defs>
+        <g transform="translate(38,150)">
+          <rect id="node0" x="0" y="0" rx="8" ry="8" width="140" height="76" class="node"/>
+          <text x="70" y="32" text-anchor="middle" class="node-title">Source Data</text>
+          <text x="70" y="54" text-anchor="middle" class="node-sub">vendor filing row</text>
+
+          <rect id="node1" x="160" y="0" rx="8" ry="8" width="150" height="76" class="node"/>
+          <text x="235" y="32" text-anchor="middle" class="node-title">Availability</text>
+          <text x="235" y="54" text-anchor="middle" class="node-sub">legal-from time</text>
+
+          <rect id="node2" x="330" y="0" rx="8" ry="8" width="134" height="76" class="node"/>
+          <text x="397" y="32" text-anchor="middle" class="node-title">Label</text>
+          <text x="397" y="54" text-anchor="middle" class="node-sub">daily target</text>
+
+          <rect id="node3" x="484" y="0" rx="8" ry="8" width="166" height="76" class="node"/>
+          <text x="567" y="32" text-anchor="middle" class="node-title">Join / Feature</text>
+          <text x="567" y="54" text-anchor="middle" class="node-sub">daily model row</text>
+
+          <rect id="node4" x="670" y="0" rx="8" ry="8" width="146" height="76" class="node"/>
+          <text x="743" y="32" text-anchor="middle" class="node-title">Fit / Transform</text>
+          <text x="743" y="54" text-anchor="middle" class="node-sub">train matrix</text>
+
+          <rect id="node5" x="836" y="0" rx="8" ry="8" width="146" height="76" class="node"/>
+          <text x="909" y="32" text-anchor="middle" class="node-title">Validation</text>
+          <text x="909" y="54" text-anchor="middle" class="node-sub">reported metric</text>
+
+          <path d="M140 38 H158" class="arrow"/>
+          <path d="M310 38 H328" class="arrow"/>
+          <path d="M464 38 H482" class="arrow"/>
+          <path d="M650 38 H668" class="arrow"/>
+          <path d="M816 38 H834" class="arrow"/>
+
+          <rect x="197" y="-55" rx="7" ry="7" width="76" height="32" class="tool"/>
+          <text x="235" y="-34" text-anchor="middle" class="tool-label">PIT tool</text>
+          <line x1="235" y1="-23" x2="235" y2="0" stroke="#7c828a" stroke-width="1"/>
+
+          <rect x="360" y="-55" rx="7" ry="7" width="74" height="32" class="tool"/>
+          <text x="397" y="-34" text-anchor="middle" class="tool-label">label check</text>
+          <line x1="397" y1="-23" x2="397" y2="0" stroke="#7c828a" stroke-width="1"/>
+
+          <rect x="707" y="-55" rx="7" ry="7" width="72" height="32" class="tool"/>
+          <text x="743" y="-34" text-anchor="middle" class="tool-label">fit check</text>
+          <line x1="743" y1="-23" x2="743" y2="0" stroke="#7c828a" stroke-width="1"/>
+
+          <rect x="869" y="-55" rx="7" ry="7" width="80" height="32" class="tool"/>
+          <text x="909" y="-34" text-anchor="middle" class="tool-label">purged CV</text>
+          <line x1="909" y1="-23" x2="909" y2="0" stroke="#7c828a" stroke-width="1"/>
+
+          <line id="seam1" x1="320" y1="-8" x2="320" y2="102" class="seam"/>
+          <line id="seam2" x1="474" y1="-8" x2="474" y2="102" class="seam"/>
+          <line id="seam3" x1="660" y1="-8" x2="660" y2="102" class="seam"/>
+          <line id="seam4" x1="826" y1="-8" x2="826" y2="102" class="seam"/>
+
+          <text id="lab1" x="320" y="126" text-anchor="middle" class="seam-label">ETL keeps period_end but not availability constraint</text>
+          <text id="lab2" x="474" y="126" text-anchor="middle" class="seam-label">daily label rows ignore available_time</text>
+          <text id="lab3" x="660" y="126" text-anchor="middle" class="seam-label">calendarize / ffill / merge from quarter date</text>
+          <text id="lab4" x="826" y="126" text-anchor="middle" class="seam-label">locally legal fit on already leaked X</text>
+
+          <rect id="guardBand" x="320" y="162" width="506" height="48" rx="10" ry="10" class="guard-band"/>
+          <text id="guardText" x="573" y="192" text-anchor="middle" class="guard-text">TimeGuard: cross-boundary contract checks</text>
+
+          <text id="ok1" x="235" y="246" text-anchor="middle" class="ok-note">PIT output itself is locally correct</text>
+          <text id="ok2" x="397" y="246" text-anchor="middle" class="ok-note">label window itself is locally correct</text>
+          <text id="ok3" x="743" y="246" text-anchor="middle" class="ok-note">fit scope itself is locally correct</text>
+          <text id="ok4" x="909" y="246" text-anchor="middle" class="ok-note">split logic itself is locally correct</text>
+
+          <circle id="token" class="token" cx="70" cy="38" r="12"></circle>
+          <text id="tokenText" class="token-label" x="70" y="104" text-anchor="middle">same record</text>
+          <text id="blocked" class="blocked" x="573" y="278" text-anchor="middle">blocked before quarter-end-based daily expansion leaks the record into X</text>
+        </g>
+      </svg>
+      <div class="foot">The concrete failure pattern is this: a quarterly filing row is eventually expanded into a daily modeling panel. The local tools can all be correct, yet the daily expansion can still make the feature appear usable on <span class="mono">2024-04-01</span> even though the record only becomes legal on <span class="mono">2024-05-10</span>.</div>
+    </div>
+
+    <div class="panel side">
+      <span class="stepnum" id="stepnum">Step 1 of 6</span>
+      <h3 id="steptitle">Source row contains both accounting time and public-release time</h3>
+      <p id="stepdesc">The same filing record flows through the whole pipeline. The point is to show concrete engineering patterns that can damage the time constraint during hand-off, not to claim that users literally type one absurd line by hand.</p>
+
+      <div class="card">
+        <h4>Tracked record state in this step</h4>
+        <div class="row" id="stateBox"></div>
+      </div>
+      <div class="card">
+        <h4>What the local package says</h4>
+        <div class="row" id="localBox"></div>
+      </div>
+      <div class="card">
+        <h4>Concrete real-world hand-off pattern</h4>
+        <div class="row" id="patternBox"></div>
+      </div>
+      <div class="card">
+        <h4>Why local checks still pass</h4>
+        <div class="row" id="passBox"></div>
+      </div>
+      <div class="card">
+        <h4>Downstream consequence</h4>
+        <div class="row" id="consequenceBox"></div>
+      </div>
+
+      <div class="legend">
+        <div class="leg"><span class="swatch" style="background:#f5f6f8"></span>workflow node</div>
+        <div class="leg"><span class="swatch" style="background:#eceff3"></span>existing local tool</div>
+        <div class="leg"><span class="swatch" style="background:rgba(159,47,47,.08);border-color:#9f2f2f"></span>cross-boundary contract layer</div>
+        <div class="leg"><span class="swatch" style="background:#fff5f5;border-color:#9f2f2f;border-radius:999px"></span>same tracked record</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const steps = [
+    {
+      title: 'Source row contains both accounting time and public-release time',
+      desc: 'The same filing record flows through the whole pipeline. The first danger is not model fitting. It is ETL normalization that may keep one date column and quietly discard another.',
+      state: '<span class="mono">ticker=A, period_end=2024-03-31, filed_at=2024-05-10, eps_surprise=+0.18</span>',
+      local: 'Source loader / schema validator: <span class="mono">OK</span>. The vendor row is complete and timestamps parse correctly.',
+      pattern: 'A common ETL simplification is to normalize the fundamentals table by <span class="mono">(ticker, period_end)</span> because quarter-end is a stable key, while <span class="mono">filed_at</span> or <span class="mono">available_time</span> is not propagated into the downstream modeling table.',
+      pass: 'Schema checks only ask whether the row is well formed. They do not ask whether every downstream dataset will preserve the release-time constraint.',
+      consequence: 'From this point on, later code may only see the quarter key <span class="mono">2024-03-31</span>. That does not leak yet, but it makes a later early-use error much easier.',
+      node: 0,
+      x: 70,
+      seam: null,
+      ok: null
+    },
+    {
+      title: 'Availability step correctly computes the legal use time',
+      desc: 'The local PIT step itself is correct. The record becomes legally usable only on the filing date, not on the quarter end.',
+      state: '<span class="mono">factor_value=+0.18, available_time=2024-05-10</span> for the same filing row.',
+      local: 'PIT tool: <span class="mono">OK</span>. The historical retrieval correctly tags the feature with <span class="mono">available_time=2024-05-10</span>.',
+      pattern: 'The realistic failure is not that a user manually rewrites the time. It is that the PIT output is exported to a research dataframe or parquet snapshot where only <span class="mono">ticker</span>, <span class="mono">period_end</span>, and <span class="mono">factor_value</span> are kept because those are the fields used by later joins.',
+      pass: 'The PIT step has done its job. It cannot force the next dataframe, cache, or feature snapshot to keep the availability constraint as part of the hand-off contract.',
+      consequence: 'The output is still legal here, but the next node may receive a representation in which the only surviving date key is the earlier quarter date.',
+      node: 1,
+      x: 235,
+      seam: 1,
+      ok: 'ok1'
+    },
+    {
+      title: 'Label step creates daily samples whose decision date is too early',
+      desc: 'The pipeline now moves from a quarterly record to a daily supervised panel. This is where the hidden inconsistency first becomes visible.',
+      state: '<span class="mono">decision_time=2024-04-01</span>, <span class="mono">label_window=[2024-04-02, 2024-04-08]</span>, while the same feature is only legal from <span class="mono">2024-05-10</span>.',
+      local: 'Label checker: <span class="mono">OK</span>. The future-return horizon is mechanically valid and the target is computable.',
+      pattern: 'A realistic setup is that labels are built on a daily trading calendar first, producing one row per day and ticker. The feature table is expected to be joined later. Because the label code never sees or enforces <span class="mono">available_time</span>, it happily produces a row for <span class="mono">2024-04-01</span>.',
+      pass: 'Label code usually validates the future-return window, not whether every future feature joined later was already legally known on that date.',
+      consequence: 'The daily sample <span class="mono">(ticker=A, decision_time=2024-04-01)</span> now exists and is waiting for features. It is already incompatible with the quarterly record\'s true availability.',
+      node: 2,
+      x: 397,
+      seam: 2,
+      ok: 'ok2'
+    },
+    {
+      title: 'Join step leaks the quarterly record into the daily panel',
+      desc: 'This is the concrete hand-off where the error is materialized. The issue is not vague. It is daily expansion using the wrong anchor date.',
+      state: 'A daily modeling table for <span class="mono">2024-04-01</span> receives quarterly fundamentals by <span class="mono">merge</span>, <span class="mono">merge_asof</span>, quarter-key mapping, or daily <span class="mono">ffill()</span> that starts from <span class="mono">period_end</span>.',
+      local: 'Join / feature assembly code: <span class="mono">OK</span>. Keys match, the dataframe is complete, and no syntax error occurs.',
+      pattern: 'A very concrete pattern is: build a quarterly table keyed by <span class="mono">(ticker, period_end)</span>, then expand it to the daily panel by assigning the latest quarter-end observation to each later trading date. Another version is to resample the quarter table to daily frequency and call <span class="mono">ffill()</span> starting from <span class="mono">2024-03-31</span>.',
+      pass: 'The join code is only checking whether the row can be attached. It is not checking whether the attached value was legally observable on <span class="mono">2024-04-01</span>.',
+      consequence: 'The same record is now leaked into <span class="mono">X</span> for <span class="mono">decision_time=2024-04-01</span> even though it should not appear until after <span class="mono">2024-05-10</span>. This is the first concrete leaked model row.',
+      node: 3,
+      x: 567,
+      seam: 3,
+      ok: null,
+      stopIfGuard: true
+    },
+    {
+      title: 'Fit step is locally correct but receives a contaminated matrix',
+      desc: 'The fit/transform node is not where the leak is created. It is where a leaked row can survive further processing even when fit scope is proper.',
+      state: '<span class="mono">X_train</span> already contains the leaked daily row for <span class="mono">2024-04-01</span>.',
+      local: 'Fit-scope checker: <span class="mono">OK</span>. The scaler or transformer is fit only on the training fold rather than on the full sample.',
+      pattern: 'The realistic mistake is to run a perfectly standard sklearn pipeline on a panel that was already wrong before it reached the transformer. Nothing in the scaler API knows the quarterly row was injected too early.',
+      pass: 'Fit checks validate scope, not the temporal legality of every upstream feature value already present in the matrix.',
+      consequence: 'The leaked row is standardized, encoded, or transformed and can now influence fitted parameters while every local fit-scope check still reports success.',
+      node: 4,
+      x: 743,
+      seam: 4,
+      ok: 'ok3'
+    },
+    {
+      title: 'Validation reports a metric that still inherits the early-use error',
+      desc: 'Purged validation can be completely correct on its own terms and still not repair the leaked feature that entered before the split logic was ever applied.',
+      state: '<span class="mono">transformed X</span>, labels, and event intervals all reach evaluation after the same quarterly record was expanded too early into the daily panel.',
+      local: 'Purged CV: <span class="mono">OK</span>. Train/test overlap is removed and the split boundary is handled properly.',
+      pattern: 'A realistic research workflow is: build daily panel first, then run purged cross-validation. If the panel itself already contains early-available quarterly data, purging only solves label overlap, not feature legality.',
+      pass: 'Purged CV checks overlap structure in the sample intervals. It does not inspect whether a particular feature value should have been absent from the row in the first place.',
+      consequence: 'The final <span class="mono">IC / AUC / Sharpe</span> can still be optimistic because the record was illegally present in the feature matrix before the validation stage began.',
+      node: 5,
+      x: 909,
+      seam: null,
+      ok: 'ok4'
+    }
+  ];
+
+  const nodeEls = Array.from({length:6}, (_,i)=>document.getElementById('node'+i));
+  const seamEls = [null, document.getElementById('seam1'), document.getElementById('seam2'), document.getElementById('seam3'), document.getElementById('seam4')];
+  const seamLabels = [null, document.getElementById('lab1'), document.getElementById('lab2'), document.getElementById('lab3'), document.getElementById('lab4')];
+  const okMap = {
+    ok1: document.getElementById('ok1'),
+    ok2: document.getElementById('ok2'),
+    ok3: document.getElementById('ok3'),
+    ok4: document.getElementById('ok4')
+  };
+
+  const token = document.getElementById('token');
+  const tokenText = document.getElementById('tokenText');
+  const blocked = document.getElementById('blocked');
+  const guardBand = document.getElementById('guardBand');
+  const guardText = document.getElementById('guardText');
+
+  const stepnum = document.getElementById('stepnum');
+  const steptitle = document.getElementById('steptitle');
+  const stepdesc = document.getElementById('stepdesc');
+  const stateBox = document.getElementById('stateBox');
+  const localBox = document.getElementById('localBox');
+  const patternBox = document.getElementById('patternBox');
+  const passBox = document.getElementById('passBox');
+  const consequenceBox = document.getElementById('consequenceBox');
+
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const playBtn = document.getElementById('playBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const tgBtn = document.getElementById('tgBtn');
+
+  let idx = 0;
+  let useTimeGuard = false;
+  let running = false;
+
+  function renderStep() {
+    const s = steps[idx];
+    stepnum.textContent = `Step ${idx+1} of ${steps.length}`;
+    steptitle.textContent = s.title;
+    stepdesc.textContent = s.desc;
+    stateBox.innerHTML = s.state;
+    localBox.innerHTML = s.local;
+    patternBox.innerHTML = s.pattern;
+    passBox.innerHTML = s.pass;
+    consequenceBox.innerHTML = s.consequence;
+
+    nodeEls.forEach(n => n.classList.remove('active'));
+    nodeEls[s.node].classList.add('active');
+    seamEls.forEach(e => e && e.classList.remove('on'));
+    seamLabels.forEach(e => e && e.classList.remove('on'));
+    Object.values(okMap).forEach(e => e.classList.remove('on'));
+    blocked.classList.remove('on');
+    guardBand.classList.toggle('on', useTimeGuard);
+    guardText.classList.toggle('on', useTimeGuard);
+
+    if (s.seam) {
+      seamEls[s.seam].classList.add('on');
+      seamLabels[s.seam].classList.add('on');
+    }
+    if (s.ok) okMap[s.ok].classList.add('on');
+
+    token.setAttribute('cx', s.x);
+    tokenText.setAttribute('x', s.x);
+    if (useTimeGuard && s.stopIfGuard) {
+      blocked.classList.add('on');
+    }
+  }
+
+  async function play() {
+    if (running) return;
+    running = true;
+    for (let k = idx; k < steps.length; k++) {
+      idx = k;
+      renderStep();
+      if (useTimeGuard && steps[k].stopIfGuard) break;
+      await new Promise(r => setTimeout(r, 1450));
+    }
+    running = false;
+  }
+
+  prevBtn.addEventListener('click', ()=>{ if (running) return; idx = Math.max(0, idx-1); renderStep(); });
+  nextBtn.addEventListener('click', ()=>{ if (running) return; idx = Math.min(steps.length-1, idx+1); renderStep(); });
+  playBtn.addEventListener('click', play);
+  resetBtn.addEventListener('click', ()=>{ if (running) return; idx = 0; renderStep(); });
+  tgBtn.addEventListener('click', ()=>{ useTimeGuard = !useTimeGuard; tgBtn.classList.toggle('active', useTimeGuard); renderStep(); });
+
+  renderStep();
+})();
+</script>
+</body>
+</html>
