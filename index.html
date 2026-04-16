@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Cross-Boundary Data Flow Demo</title>
+<title>One-Record Cross-Boundary Failure Demo</title>
 <style>
   :root{
     --ink:#1b1e23;
@@ -19,11 +19,22 @@
   body{margin:0;background:var(--bg);color:var(--ink);font-family:"Times New Roman", Georgia, serif;}
   .wrap{max-width:1280px;margin:28px auto 44px;padding:0 22px;}
   h1{margin:0 0 10px;font-size:34px;line-height:1.15;}
-  .sub{margin:0 0 20px;color:var(--muted);font-size:18px;line-height:1.45;max-width:1100px;}
+  .sub{margin:0 0 14px;color:var(--muted);font-size:18px;line-height:1.45;max-width:1150px;}
+  .shared-strip{
+    margin:0 0 20px;
+    border:1px solid #d7dde5;
+    background:#fbfcfd;
+    border-radius:12px;
+    padding:12px 14px;
+    font-size:15px;
+    line-height:1.5;
+    color:#2e333a;
+  }
+  .shared-strip b{font-weight:600;}
   .controls{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 18px;}
   button{border:1px solid #b8bec7;background:#fafbfc;padding:9px 14px;border-radius:8px;font:15px "Times New Roman", Georgia, serif;cursor:pointer;}
   button.active{border-color:var(--danger);color:var(--danger);background:#fff5f5;}
-  .layout{display:grid;grid-template-columns:minmax(700px,1fr) 380px;gap:22px;align-items:start;}
+  .layout{display:grid;grid-template-columns:minmax(700px,1fr) 400px;gap:22px;align-items:start;}
   .panel{border:1px solid #d3d8df;border-radius:14px;background:#fff;padding:18px;}
   .svgbox svg{width:100%;height:auto;display:block;}
   .node{fill:var(--node);stroke:var(--line);stroke-width:1.3;}
@@ -62,8 +73,17 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Concrete cross-boundary data-flow demo</h1>
-  <p class="sub">The object being tracked is one quarterly fundamental signal. The same record changes form as it moves through the research pipeline. The key issue is not whether each node has a local checker, but whether the output handed to the next node remains temporally legal.</p>
+  <h1>One-record cross-boundary failure demo</h1>
+  <p class="sub">One filing record is tracked from source data to validation. Each local package checks only a node-specific condition. The comparison on the right shows how the same record can pass local checks and still become temporally illegal after a cross-boundary hand-off.</p>
+  <div class="shared-strip">
+    <b>Shared record used in every step:</b>
+    <span class="mono">period_end=2024-03-31</span>,
+    <span class="mono">filed_at=2024-05-10</span>,
+    <span class="mono">available_time=2024-05-10</span>,
+    <span class="mono">decision_time=2024-04-01</span>,
+    <span class="mono">label_window=[2024-04-02, 2024-04-08]</span>,
+    <span class="mono">eps_surprise=+0.18</span>.
+  </div>
   <div class="controls">
     <button id="prevBtn">Prev step</button>
     <button id="nextBtn">Next step</button>
@@ -73,7 +93,7 @@
   </div>
   <div class="layout">
     <div class="panel svgbox">
-      <svg viewBox="0 0 1040 620" aria-label="Concrete cross-boundary data flow animation">
+      <svg viewBox="0 0 1040 620" aria-label="One-record cross-boundary data flow animation">
         <defs>
           <marker id="arr" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
             <path d="M0,0 L10,4 L0,8 z" fill="#5d626a"></path>
@@ -139,46 +159,46 @@
           <rect id="guardBand" x="320" y="162" width="506" height="48" rx="10" ry="10" class="guard-band"/>
           <text id="guardText" x="573" y="192" text-anchor="middle" class="guard-text">TimeGuard: cross-boundary contract checks</text>
 
-          <text id="ok1" x="235" y="246" text-anchor="middle" class="ok-note">local PIT check passes</text>
-          <text id="ok2" x="397" y="246" text-anchor="middle" class="ok-note">local label check passes</text>
-          <text id="ok3" x="743" y="246" text-anchor="middle" class="ok-note">local fit check passes</text>
-          <text id="ok4" x="909" y="246" text-anchor="middle" class="ok-note">local validation passes</text>
+          <text id="ok1" x="235" y="246" text-anchor="middle" class="ok-note">local PIT tool says OK</text>
+          <text id="ok2" x="397" y="246" text-anchor="middle" class="ok-note">local label check says OK</text>
+          <text id="ok3" x="743" y="246" text-anchor="middle" class="ok-note">local fit check says OK</text>
+          <text id="ok4" x="909" y="246" text-anchor="middle" class="ok-note">local validation says OK</text>
 
           <circle id="token" class="token" cx="70" cy="38" r="12"></circle>
-          <text id="tokenText" class="token-label" x="70" y="104" text-anchor="middle">tracked object</text>
-          <text id="blocked" class="blocked" x="573" y="278" text-anchor="middle">blocked before the illegal join reaches downstream fitting and validation</text>
+          <text id="tokenText" class="token-label" x="70" y="104" text-anchor="middle">same record</text>
+          <text id="blocked" class="blocked" x="573" y="278" text-anchor="middle">blocked before the leaked record reaches downstream fitting and validation</text>
         </g>
       </svg>
-      <div class="foot">The same object changes form step by step: raw filing record -&gt; availability-tagged factor row -&gt; labeled sample -&gt; model row -&gt; scaled matrix -&gt; reported metric. The side panel spells out the input, output, and cross-boundary risk at each hand-off.</div>
+      <div class="foot">One record, one timeline, one violation: the record is only legally available on <span class="mono">2024-05-10</span>, but downstream code tries to use it at <span class="mono">decision_time=2024-04-01</span>. Local packages can still pass because each one checks a narrower condition than the full cross-boundary contract.</div>
     </div>
 
     <div class="panel side">
       <span class="stepnum" id="stepnum">Step 1 of 6</span>
-      <h3 id="steptitle">Raw filing record enters the pipeline</h3>
-      <p id="stepdesc">A quarterly filing record is observed with a period end that occurs well before the date on which the information becomes legally available to the model.</p>
+      <h3 id="steptitle">Source row is internally well formed</h3>
+      <p id="stepdesc">The same filing record used in every later step enters the workflow. Nothing is illegal yet; the future problem comes from how the record will be handed off.</p>
 
       <div class="card">
-        <h4>Input</h4>
-        <div class="row" id="inputBox"></div>
+        <h4>Tracked record state in this step</h4>
+        <div class="row" id="stateBox"></div>
       </div>
       <div class="card">
-        <h4>Output passed downstream</h4>
-        <div class="row" id="outputBox"></div>
+        <h4>What the local package says</h4>
+        <div class="row" id="localBox"></div>
       </div>
       <div class="card">
-        <h4>Downstream risk even if local tools pass</h4>
-        <div class="row" id="riskBox"></div>
+        <h4>Why it can still pass</h4>
+        <div class="row" id="passBox"></div>
       </div>
       <div class="card">
-        <h4>Local package or check that may still say "OK"</h4>
-        <div class="row" id="toolBox"></div>
+        <h4>What is still temporally illegal downstream</h4>
+        <div class="row" id="illegalBox"></div>
       </div>
 
       <div class="legend">
         <div class="leg"><span class="swatch" style="background:#f5f6f8"></span>workflow node</div>
         <div class="leg"><span class="swatch" style="background:#eceff3"></span>existing local tool</div>
         <div class="leg"><span class="swatch" style="background:rgba(159,47,47,.08);border-color:#9f2f2f"></span>cross-boundary contract layer</div>
-        <div class="leg"><span class="swatch" style="background:#fff5f5;border-color:#9f2f2f;border-radius:999px"></span>tracked object</div>
+        <div class="leg"><span class="swatch" style="background:#fff5f5;border-color:#9f2f2f;border-radius:999px"></span>same tracked record</div>
       </div>
     </div>
   </div>
@@ -188,48 +208,48 @@
 (() => {
   const steps = [
     {
-      title: 'Raw filing record enters the pipeline',
-      desc: 'A quarterly filing record is observed with a period end that occurs well before the date on which the information becomes legally available to the model.',
-      input: '<span class="mono">period_end=2024-03-31, filed_at=2024-05-10, eps_surprise=+0.18</span>',
-      output: '<span class="mono">raw event record</span> with both economic time and publication time still attached.',
-      risk: 'If downstream code later keys the record on <span class="mono">period_end</span> rather than on the true legal availability time, future information can be injected before any model is trained.',
-      tool: 'A source-specific loader or schema checker can still pass here because the row is internally well formed.',
+      title: 'Source row is internally well formed',
+      desc: 'The same filing record used in every later step enters the workflow. Nothing is illegal yet; the future problem comes from how the record will be handed off.',
+      state: '<span class="mono">period_end=2024-03-31, filed_at=2024-05-10, eps_surprise=+0.18</span>',
+      local: 'Source loader / schema checker: <span class="mono">OK</span>. The row is parseable, complete, and internally well formed.',
+      pass: 'Source checks do not decide when the signal becomes legally usable for a strategy or model.',
+      illegal: 'Nothing illegal yet. The downstream danger is that later code may key the record on <span class="mono">period_end</span> instead of on the true <span class="mono">available_time</span>.',
       node: 0,
       x: 70,
       seam: null,
       ok: null
     },
     {
-      title: 'Availability normalization produces the legal feature timestamp',
-      desc: 'The raw filing is converted into a feature candidate whose earliest legal use time is the actual filing date rather than the accounting period end.',
-      input: '<span class="mono">raw event record</span> from the source layer.',
-      output: '<span class="mono">factor_value=+0.18, available_time=2024-05-10</span>',
-      risk: 'The object is now legal only from <span class="mono">2024-05-10</span>. If the next node silently drops <span class="mono">available_time</span>, the downstream join can become illegal even though point-in-time retrieval itself was correct.',
-      tool: 'A PIT retrieval tool can correctly reconstruct the factor row and still not control how the row will later be joined to the model table.',
+      title: 'PIT step correctly assigns the legal-from timestamp',
+      desc: 'The same record is converted into a factor candidate. This local step is correct: the earliest legal use time is the filing date, not the accounting period end.',
+      state: '<span class="mono">factor_value=+0.18, available_time=2024-05-10</span> for the same filing record.',
+      local: 'PIT retrieval tool: <span class="mono">OK</span>. It reconstructs the factor row and correctly tags it with <span class="mono">available_time=2024-05-10</span>.',
+      pass: 'A PIT tool guarantees historical retrieval at this node. It does not control how later nodes merge or reinterpret the row.',
+      illegal: 'Still legal at this step. The upcoming risk is that the hand-off drops <span class="mono">available_time</span> and later reuses <span class="mono">period_end=2024-03-31</span> as if it were the legal use time.',
       node: 1,
       x: 235,
       seam: 1,
       ok: 'ok1'
     },
     {
-      title: 'Label construction creates the supervised target',
-      desc: 'The research pipeline now combines the timestamped factor candidate with a decision time and a future return horizon.',
-      input: '<span class="mono">factor row</span> plus price path and decision calendar.',
-      output: '<span class="mono">(x_t, y_{t+1:t+5})</span> where the label is defined on a future interval.',
-      risk: 'If the label starts at the wrong point or overlaps the decision boundary incorrectly, the sample becomes temporally invalid before any validation splitter sees it.',
-      tool: 'A local label checker may confirm that the label was mechanically created, without testing whether its contract is consistent with the upstream feature timestamps.',
+      title: 'Label step pairs the same record with an impossible decision time',
+      desc: 'The same record is now paired with a supervised target. This is the first place where the full temporal contract should reject it.',
+      state: '<span class="mono">decision_time=2024-04-01</span>, <span class="mono">label_window=[2024-04-02, 2024-04-08]</span>, while the same feature row still has <span class="mono">available_time=2024-05-10</span>.',
+      local: 'Label checker: <span class="mono">OK</span>. The future-return window is mechanically well formed and the horizon is computable.',
+      pass: 'A label checker can validate the target interval without proving that the feature was already legally available at the decision time.',
+      illegal: 'The record is already temporally inconsistent here because <span class="mono">available_time=2024-05-10 &gt; decision_time=2024-04-01</span>.',
       node: 2,
       x: 397,
       seam: 2,
       ok: 'ok2'
     },
     {
-      title: 'Join and feature assembly create the model row',
-      desc: 'This is the critical hand-off. The feature is merged into the design matrix used for model fitting and evaluation.',
-      input: '<span class="mono">availability-tagged factor row</span> and <span class="mono">decision_time=2024-04-01</span>.',
-      output: 'A model row is created. If the code joins on <span class="mono">period_end</span> or observation date, the factor incorrectly appears usable on <span class="mono">2024-04-01</span>.',
-      risk: 'The downstream matrix now contains a feature that is temporally illegal even though the source row and PIT step were individually correct.',
-      tool: 'Existing node-level tools can still say "OK" because the join syntax is valid and the row looks complete; the error is in the legality of the hand-off across nodes.',
+      title: 'Join step materializes the leaked record into the model row',
+      desc: 'The same record now crosses the most dangerous hand-off. A syntactically valid join can still create a temporally illegal feature row.',
+      state: 'The same feature is merged into the design matrix for <span class="mono">decision_time=2024-04-01</span> by using <span class="mono">period_end</span> or observation date as the key.',
+      local: 'Join / feature assembly code: <span class="mono">OK</span>. The join runs, keys match, and the model row is fully populated.',
+      pass: 'Local join logic checks syntax and row completeness. It does not know that <span class="mono">period_end</span> was incorrectly treated as a proxy for legal availability.',
+      illegal: 'The same record is now leaked into <span class="mono">X</span> before it was legally observable. This is the cross-boundary error that downstream fitting and validation will inherit.',
       node: 3,
       x: 567,
       seam: 3,
@@ -237,24 +257,24 @@
       stopIfGuard: true
     },
     {
-      title: 'Fit / transform converts the joined table into the learning matrix',
-      desc: 'The joined table is scaled or otherwise transformed before model training.',
-      input: '<span class="mono">assembled design matrix X</span> that already contains the illegal factor row.',
-      output: '<span class="mono">scaled/transformed X</span> for model fitting.',
-      risk: 'If the scaler is fit globally before the split, the temporal error is compounded; even if fit scope is locally checked, the illegal row from the previous step has already contaminated the matrix.',
-      tool: 'A fit-scope checker may confirm that the scaler runs, yet it cannot undo an invalid join that occurred upstream.',
+      title: 'Fit step legally transforms an already illegal matrix',
+      desc: 'The fit/transform node can be locally correct and still be operating on a contaminated design matrix.',
+      state: '<span class="mono">X</span> already contains the leaked version of the same record, and the scaler or transformer receives that matrix as input.',
+      local: 'Fit-scope checker: <span class="mono">OK</span>. The scaler is fit only on the training fold rather than on the full sample.',
+      pass: 'Fit-scope checks evaluate how the transformer is fit. They do not repair a row that was already leaked by an upstream hand-off.',
+      illegal: 'The same illegal record is now standardized and can contaminate model parameters even though fit scope itself is locally legal.',
       node: 4,
       x: 743,
       seam: 4,
       ok: 'ok3'
     },
     {
-      title: 'Validation reports an optimistic metric',
+      title: 'Validation reports an optimistic metric for the same leaked record',
       desc: 'Purged validation can remove label-overlap leakage and still leave the earlier cross-boundary violation untouched.',
-      input: '<span class="mono">transformed X</span>, labels, and event intervals.',
-      output: '<span class="mono">IC / AUC / Sharpe estimate</span> that is biased upward because the illegal signal survived into evaluation.',
-      risk: 'The final metric looks legitimate because local validation solved a different problem: overlap, not the legality of the upstream hand-off.',
-      tool: 'Purged CV or similar splitters can correctly pass here while the evaluation remains optimistic for reasons introduced before the split.',
+      state: '<span class="mono">transformed X</span>, labels, and event intervals all reach evaluation after the same leaked record survived upstream.',
+      local: 'Purged CV: <span class="mono">OK</span>. Train/test label overlap is removed and the split boundary is locally correct.',
+      pass: 'Purged CV solves overlap leakage, not misuse of <span class="mono">available_time</span> or an illegal upstream join.',
+      illegal: 'The final <span class="mono">IC / AUC / Sharpe</span> can still be biased upward because the same leaked record entered evaluation long before the split logic ran.',
       node: 5,
       x: 909,
       seam: null,
@@ -281,10 +301,10 @@
   const stepnum = document.getElementById('stepnum');
   const steptitle = document.getElementById('steptitle');
   const stepdesc = document.getElementById('stepdesc');
-  const inputBox = document.getElementById('inputBox');
-  const outputBox = document.getElementById('outputBox');
-  const riskBox = document.getElementById('riskBox');
-  const toolBox = document.getElementById('toolBox');
+  const stateBox = document.getElementById('stateBox');
+  const localBox = document.getElementById('localBox');
+  const passBox = document.getElementById('passBox');
+  const illegalBox = document.getElementById('illegalBox');
 
   const prevBtn = document.getElementById('prevBtn');
   const nextBtn = document.getElementById('nextBtn');
@@ -301,10 +321,10 @@
     stepnum.textContent = `Step ${idx+1} of ${steps.length}`;
     steptitle.textContent = s.title;
     stepdesc.textContent = s.desc;
-    inputBox.innerHTML = s.input;
-    outputBox.innerHTML = s.output;
-    riskBox.innerHTML = s.risk;
-    toolBox.innerHTML = s.tool;
+    stateBox.innerHTML = s.state;
+    localBox.innerHTML = s.local;
+    passBox.innerHTML = s.pass;
+    illegalBox.innerHTML = s.illegal;
 
     nodeEls.forEach(n => n.classList.remove('active'));
     nodeEls[s.node].classList.add('active');
